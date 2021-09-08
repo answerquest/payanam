@@ -12,8 +12,8 @@
         "defaultSpeed": 15
     },
     "databanksList": {
-        "Databank": "databank/stops-databank.csv",
         "Mapped Stops": "reports/stops_mapped_databank.csv",
+        "Databank": "databank/stops-databank.csv",
         "Automapped Stops": "reports/stops_automapped.csv",
         "Post Offices": "databank/postoffice.csv",
         "Hamlets": "databank/hamlets-hyderabad-region.csv"

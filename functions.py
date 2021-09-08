@@ -1043,29 +1043,6 @@ def processGTFS(zipname):
 
     routeNameSet = set() # for ensuring that same route name isn't repeated
 
-    jsonTemplate = {
-        "routeFileName": "",
-        "routeName": "",
-        "depot": "",
-        "stopsArray0": [],
-        "stopsArray1": [],
-        "timeStructure_0": {
-            "trip_times": [],
-            "first_trip_start": "",
-            "last_trip_start": "",
-            "frequency": 0,
-            "duration": ""
-        },
-        "timeStructure_1": {
-            "trip_times": [],
-            "first_trip_start": "",
-            "last_trip_start": "",
-            "frequency": 0,
-            "duration": ""
-        },
-        "serviceNumbers": []
-    }
-
     overwritten = 0
 
     # starting main loop
@@ -1074,8 +1051,29 @@ def processGTFS(zipname):
         logmessage(msg)
         rtn += "\n"+msg
         # make the json structure
-        routeD = jsonTemplate.copy()
-
+        routeD = {
+            "routeFileName": "",
+            "routeName": "",
+            "depot": "",
+            "stopsArray0": [],
+            "stopsArray1": [],
+            "timeStructure_0": {
+                "trip_times": [],
+                "first_trip_start": "",
+                "last_trip_start": "",
+                "frequency": 0,
+                "duration": ""
+            },
+            "timeStructure_1": {
+                "trip_times": [],
+                "first_trip_start": "",
+                "last_trip_start": "",
+                "frequency": 0,
+                "duration": ""
+            },
+            "serviceNumbers": []
+        }
+        
         routeD['depot'] = r['route_long_name'].split('_')[0]
         routeName = '_'.join(r['route_long_name'].split('_')[1:])
         routeD['routeName'] = routeName
@@ -1097,17 +1095,20 @@ def processGTFS(zipname):
             continue
 
         # take block_id as service numbers
-        routeD['serviceNumbers'] = alltrips['block_id'].unique().tolist()
+        if 'block_id' in alltrips.columns:
+            routeD['serviceNumbers'] = alltrips['block_id'].unique().tolist()
         
         # take first trip
         tripidsList = alltrips['trip_id'].tolist()
         trip_id = tripidsList[0]
-        msg = f"{len(alltrips)} trips, taking trip_id: {trip_id} for default sequence"
-        logmessage(msg)
-        rtn += "\n"+msg
         
         # stop times for that trip
         st1 = stoptimesdf[stoptimesdf['trip_id']==trip_id].copy().reset_index(drop=True)
+        
+        msg = f"{len(alltrips)} trips, taking trip_id: {trip_id} for default sequence, {len(st1)} stops"
+        logmessage(msg)
+        rtn += "\n"+msg
+        
         timings = st1['arrival_time'].tolist()
         durationSecs = gtfsC.timeDiff(timings[0], timings[-1], formatted=False)
         
