@@ -294,7 +294,7 @@ def lat_long_dist(lat1,lon1,lat2,lon2):
 def backup(filepath):
     # make timestamp for backup string
     backupSuffix = '_{:%Y%m%d-%H%M%S}'.format(datetime.datetime.utcnow() + datetime.timedelta(hours=5.5))
-    destinationPath = os.path.join(backupsFolder, filepath[len(root)+1:] + backupSuffix)
+    destinationPath = os.path.join(backupsFolder, filepath[len(root):] + backupSuffix)
 
     # copy folder paths
     try:
@@ -1012,6 +1012,7 @@ def uploadaFile(fileholder):
 
 
 def processGTFS(zipname):
+    start = time.time()
     rtn = ''
     unzipFolder = os.path.join(uploadFolder,f"unzip-{makeUID()}")
     os.makedirs(unzipFolder, exist_ok=True)
@@ -1040,33 +1041,53 @@ def processGTFS(zipname):
     for d in depots:
         os.makedirs(os.path.join(routesFolder,d), exist_ok=True)
 
+    routeNameSet = set() # for ensuring that same route name isn't repeated
+
+    jsonTemplate = {
+        "routeFileName": "",
+        "routeName": "",
+        "depot": "",
+        "stopsArray0": [],
+        "stopsArray1": [],
+        "timeStructure_0": {
+            "trip_times": [],
+            "first_trip_start": "",
+            "last_trip_start": "",
+            "frequency": 0,
+            "duration": ""
+        },
+        "timeStructure_1": {
+            "trip_times": [],
+            "first_trip_start": "",
+            "last_trip_start": "",
+            "frequency": 0,
+            "duration": ""
+        },
+        "serviceNumbers": []
+    }
+
+    overwritten = 0
+
+    # starting main loop
     for rN, r in routedf.iterrows():
         msg = f"Route: {r['route_short_name']}, {r['route_long_name']}"
         logmessage(msg)
         rtn += "\n"+msg
         # make the json structure
-        routeD = {
-            "routeFileName": f"{r['route_short_name']}.json",
-            "routeName": r['route_short_name'],
-            "depot": r['route_long_name'].split('_')[0],
-            "stopsArray0": [],
-            "stopsArray1": [],
-            "timeStructure_0": {
-                "trip_times": [],
-                "first_trip_start": "",
-                "last_trip_start": "",
-                "frequency": 0,
-                "duration": ""
-            },
-            "timeStructure_1": {
-                "trip_times": [],
-                "first_trip_start": "",
-                "last_trip_start": "",
-                "frequency": 0,
-                "duration": ""
-            },
-            "serviceNumbers": []
-        }
+        routeD = jsonTemplate.copy()
+
+        routeD['depot'] = r['route_long_name'].split('_')[0]
+        routeName = '_'.join(r['route_long_name'].split('_')[1:])
+        routeD['routeName'] = routeName
+        routeD['routeFileName'] = f"{routeName}.json"
+
+        if r['route_long_name'] in routeNameSet:
+            msg = f"Warning! Repeated route: {r['route_long_name']}"
+            logmessage(msg)
+            rtn += "\n"+msg
+        else:
+            routeNameSet.add(r['route_long_name'])
+
         # take all trips for this route
         alltrips = tripdf[tripdf['route_id'] == r['route_id']].copy().reset_index(drop=True)
         if not len(alltrips):
@@ -1074,6 +1095,9 @@ def processGTFS(zipname):
             logmessage(msg)
             rtn += "\n"+msg
             continue
+
+        # take block_id as service numbers
+        routeD['serviceNumbers'] = alltrips['block_id'].unique().tolist()
         
         # take first trip
         tripidsList = alltrips['trip_id'].tolist()
@@ -1117,12 +1141,31 @@ def processGTFS(zipname):
         # get all trip starting times
         st2 = stoptimesdf[(stoptimesdf['trip_id'].isin(tripidsList)) & (stoptimesdf['stop_sequence']=='0')].copy()
         routeD['timeStructure_0']['trip_times'] = [x[:5] for x in st2['arrival_time'].tolist()]
-        # print(routeD)
-        json.dump(routeD, open(os.path.join(routesFolder,routeD['depot'],routeD['routeFileName']), 'w'), indent=2)
+        
+        # Finally, save the route json
+        fullpath = os.path.join(routesFolder,routeD['depot'],routeD['routeFileName'])
+        # backup if already existing
+        if os.path.exists(fullpath):
+            backup(fullpath)
+            overwritten +=1
+        json.dump(routeD, open(fullpath, 'w'), indent=2)
         msg = f"Created {routeD['routeFileName']} under {routeD['depot']} depot"
         logmessage(msg)
         rtn += "\n"+msg+"\n"
+    # end of main loop
+    
+    timeTaken = round(time.time() - start,2)
+    msg = f"Imported {len(routeNameSet)} routes under {len(depots)} depots in {timeTaken} secs"
+    logmessage(msg)
+    rtn += "\n"+msg+"\n"
+    
+    if overwritten > 0 :
+        msg = f"{overwritten} previously existing route jsons backed up and overwritten"
+        logmessage(msg)
+        rtn += "\n"+msg+"\n"
+
     return rtn
+
 
 ## GRAVEYARD
 
