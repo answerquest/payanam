@@ -1023,10 +1023,15 @@ def processGTFS(zipname):
     logmessage("files in zip:",filenames)
     rtn += f"files: {', '.join(filenames)}"
 
-    routedf = pd.read_csv(os.path.join(unzipFolder, 'routes.txt'), sep=';', dtype=str)
-    stopdf = pd.read_csv(os.path.join(unzipFolder, 'stops.txt'), sep=';', dtype=str)
-    tripdf = pd.read_csv(os.path.join(unzipFolder, 'trips.txt'), sep=';', dtype=str)
-    stoptimesdf = pd.read_csv(os.path.join(unzipFolder, 'stop_times.txt'), sep=';', dtype=str)
+    routedf = pd.read_csv(os.path.join(unzipFolder, 'routes.txt'), sep=',', dtype=str)
+    stopdf = pd.read_csv(os.path.join(unzipFolder, 'stops.txt'), sep=',', dtype=str)
+    tripdf = pd.read_csv(os.path.join(unzipFolder, 'trips.txt'), sep=',', dtype=str)
+    stoptimesdf = pd.read_csv(os.path.join(unzipFolder, 'stop_times.txt'), sep=',', dtype=str)
+
+    # print("routedf:",routedf.columns.tolist())
+    # print("stopdf:",stopdf.columns.tolist())
+    # print("tripdf:",tripdf.columns.tolist())
+    # print("stoptimesdf:",stoptimesdf.columns.tolist())
 
     # make stops lookup
     stopsLookup = {}
@@ -1048,7 +1053,7 @@ def processGTFS(zipname):
     # starting main loop
     for rN, r in routedf.iterrows():
         msg = f"Route: {r['route_short_name']}, {r['route_long_name']}"
-        logmessage(msg)
+        # logmessage(msg)
         rtn += "\n"+msg
         # make the json structure
         routeD = {
@@ -1062,14 +1067,16 @@ def processGTFS(zipname):
                 "first_trip_start": "",
                 "last_trip_start": "",
                 "frequency": 0,
-                "duration": ""
+                "duration": "",
+                "bus_type": []
             },
             "timeStructure_1": {
                 "trip_times": [],
                 "first_trip_start": "",
                 "last_trip_start": "",
                 "frequency": 0,
-                "duration": ""
+                "duration": "",
+                "bus_type": []
             },
             "serviceNumbers": []
         }
@@ -1081,7 +1088,7 @@ def processGTFS(zipname):
 
         if r['route_long_name'] in routeNameSet:
             msg = f"Warning! Repeated route: {r['route_long_name']}"
-            logmessage(msg)
+            # logmessage(msg)
             rtn += "\n"+msg
         else:
             routeNameSet.add(r['route_long_name'])
@@ -1098,6 +1105,10 @@ def processGTFS(zipname):
         if 'block_id' in alltrips.columns:
             routeD['serviceNumbers'] = alltrips['block_id'].unique().tolist()
         
+        # include bus_type if available
+        if 'bus_type' in alltrips.columns:
+            routeD['timeStructure_0']['bus_type'] = alltrips['bus_type'].tolist()
+
         # take first trip
         tripidsList = alltrips['trip_id'].tolist()
         trip_id = tripidsList[0]
@@ -1106,7 +1117,7 @@ def processGTFS(zipname):
         st1 = stoptimesdf[stoptimesdf['trip_id']==trip_id].copy().reset_index(drop=True)
         
         msg = f"{len(alltrips)} trips, taking trip_id: {trip_id} for default sequence, {len(st1)} stops"
-        logmessage(msg)
+        # logmessage(msg)
         rtn += "\n"+msg
         
         timings = st1['arrival_time'].tolist()
@@ -1122,7 +1133,7 @@ def processGTFS(zipname):
             durationMins = durationMins % 60
         duration = f"{str(durationHrs).rjust(2,'0')}:{str(durationMins).rjust(2,'0')}"
         msg = f"duration: {duration} (hh:mm)"
-        logmessage(msg)
+        # logmessage(msg)
         rtn += "\n"+msg
         routeD['timeStructure_0']['duration'] = duration
         
@@ -1151,7 +1162,7 @@ def processGTFS(zipname):
             overwritten +=1
         json.dump(routeD, open(fullpath, 'w'), indent=2)
         msg = f"Created {routeD['routeFileName']} under {routeD['depot']} depot"
-        logmessage(msg)
+        # logmessage(msg)
         rtn += "\n"+msg+"\n"
     # end of main loop
     
